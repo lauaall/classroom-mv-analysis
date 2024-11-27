@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Comprehensive Student Engagement Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/inter-ui/3.19.3/inter.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@0.0.3/dist/face-landmarks-detection.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7/dist/blazeface.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@0.0.6/dist/pose-detection.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js"></script>
+    
+    <style>
+        :root {
+            --primary: #2563eb;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --purple: #8b5cf6;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter';
+        }
+
+        body {
+            background: #f8fafc;
+            color: #1e293b;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1500px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .video-container {
+            position: relative;
+            background: #1e293b;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+
+        #videoElement {
+            width: 100%;
+            height: 480px;
+            object-fit: cover;
+        }
+
+        #overlayCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .metric-overlay {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 0.5rem;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        button {
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        #startButton {
+            background: var(--primary);
+            color: white;
+        }
+
+        #startButton:hover {
+            background: #1d4ed8;
+        }
+
+        #stopButton {
+            background: var(--danger);
+            color: white;
+        }
+
+        #stopButton:hover {
+            background: #dc2626;
+        }
+
+        .status {
+            color: white;
+            background: rgba(30, 41, 59, 0.8);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            position: absolute;
+            bottom: 1rem;
+            left: 1rem;
+            font-size: 0.875rem;
+            backdrop-filter: blur(4px);
+        }
+
+        .error {
+            color: var(--danger);
+            padding: 1rem;
+            margin: 1rem 0;
+            background: #fee2e2;
+            border-radius: 8px;
+            font-size: 0.875rem;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .metric-card {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .metric-label {
+            font-size: 0.875rem;
+            color: #64748b;
+            margin-top: 0.25rem;
+        }
+
+        .expression-metrics {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+            margin-top: 1rem;
+            font-size: 0.875rem;
+        }
+
+        .expression-metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem;
+            background: #f8fafc;
+            border-radius: 4px;
+        }
+
+        .charts {
+            display: grid;
+            gap: 1rem;
+            grid-template-columns: 1fr;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+        }
+
+        .metric-bar {
+            width: 100px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            margin-top: 2px;
+            border-radius: 2px;
+        }
+
+        .metric-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="dashboard">
+            <div class="card">
+                <div class="video-container">
+                    <video id="videoElement" autoplay playsinline></video>
+                    <canvas id="overlayCanvas"></canvas>
+                    <div id="status" class="status">Press start tracking...</div>
+                </div>
+                <div class="controls">
+                    <button id="startButton">Start Tracking</button>
+                    <button id="stopButton">Stop Tracking</button>
+                </div>
+                <div id="errorMessage" class="error" style="display: none;"></div>
+            </div>
+            
+            <div class="card">
+                <div class="metrics">
+                    <div class="metric-card">
+                        <div class="metric-value" id="activeStudents">0</div>
+                        <div class="metric-label">Active Students</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="avgEngagement">0%</div>
+                        <div class="metric-label">Engagement</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="avgFocus">0%</div>
+                        <div class="metric-label">Focus</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="avgParticipation">0%</div>
+                        <div class="metric-label">Participation</div>
+                    </div>
+                </div>
+                <div id="expressionMetrics" class="expression-metrics">
+                    <!-- Expression metrics will be added here dynamically -->
+                </div>
+                <div class="charts">
+                    <div class="chart-container">
+                        <canvas id="engagementChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="focusChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="expressionChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isRunning = false;
+        let video;
+        let canvas;
+        let ctx;
+        let faceModel;
+        let blazeModel;
+        let poseModel;
+        let engagementData = [];
+        let focusData = [];
+        let expressionData = {
+            neutral: [], happy: [], sad: [], angry: [], 
+            fearful: [], disgusted: [], surprised: []
+        };
+        const engagementChart = new Chart(
+            document.getElementById('engagementChart'),
+            {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Engagement',
+                            data: [],
+                            borderColor: '#2563eb',
+                            tension: 0.4,
+                            fill: true,
+                            backgroundColor: 'rgba(37, 99, 235, 0.1)'
+                        },
+                        {
+                            label: 'Attention',
+                            data: [],
+                            borderColor: '#22c55e',
+                            tension: 0.4,
+                            fill: true,
+                            backgroundColor: 'rgba(34, 197, 94, 0.1)'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: true
+                        },
+                        title: {
+                            display: true,
+                            text: 'Engagement & Attention Over Time'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            }
+        );
+        const focusChart = new Chart(
+            document.getElementById('focusChart'),
+            {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Focus',
+                            data: [],
+                            borderColor: '#8b5cf6',
+                            tension: 0.4,
+                            fill: true,
+                            backgroundColor: 'rgba(139, 92, 246, 0.1)'
+                        },
+                        {
+                            label: 'Alertness',
+                            data: [],
+                            borderColor: '#f59e0b',
+                            tension: 0.4,
+                            fill: true,
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: true
+                        },
+                        title: {
+                            display: true,
+                            text: 'Focus & Alertness Over Time'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            }
+        );
+        const expressionChart = new Chart(
+            document.getElementById('expressionChart'),
+            {
+                type: 'bar',
+                data: {
+                    labels: ['Neutral', 'Happy', 'Sad', 'Angry', 'Fearful', 'Disgusted', 'Surprised'],
+                    datasets: [{
+                        label: 'Expression Distribution',
+                        data: [0, 0, 0, 0, 0, 0, 0],
+                        backgroundColor: [
+                            '#64748b', '#22c55e', '#3b82f6', 
+                            '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: 'Expression Distribution'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    }
+                }
+            }
+        );
+        function updateCharts(metrics) {
+            const timestamp = new Date().toLocaleTimeString();
+            engagementChart.data.labels.push(timestamp);
+            engagementChart.data.datasets[0].data.push(metrics.avgEngagement);
+            engagementChart.data.datasets[1].data.push(metrics.avgAttention);
+            focusChart.data.labels.push(timestamp);
+            focusChart.data.datasets[0].data.push(metrics.avgFocus);
+            focusChart.data.datasets[1].data.push(metrics.avgAlertness);
+            expressionChart.data.datasets[0].data = [
+                metrics.expressions.neutral,
+                metrics.expressions.happy,
+                metrics.expressions.sad,
+                metrics.expressions.angry,
+                metrics.expressions.fearful,
+                metrics.expressions.disgusted,
+                metrics.expressions.surprised
+            ];
+            engagementChart.update();
+            focusChart.update();
+            expressionChart.update();
+        }
+        function updateExpressionMetrics(expressions) {
+            const container = document.getElementById('expressionMetrics');
+            container.innerHTML = '';
+            Object.entries(expressions).forEach(([expression, value]) => {
+                const div = document.createElement('div');
+                div.className = 'expression-metric';
+                div.innerHTML = `
+                    <span>${expression.charAt(0).toUpperCase() + expression.slice(1)}</span>
+                    <span>${value.toFixed(1)}%</span>
+                `;
+                container.appendChild(div);
+            });
+        }
+        async function setupCamera() {
+            video = document.getElementById('videoElement');
+            canvas = document.getElementById('overlayCanvas');
+            ctx = canvas.getContext('2d');
+            canvas.width = video.clientWidth;
+            canvas.height = video.clientHeight;
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: canvas.width,
+                        height: canvas.height,
+                        facingMode: 'user'
+                    }
+                });
+                video.srcObject = stream;
+                return new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        updateStatus('Camera initialized');
+                        resolve(video);
+                    };
+                });
+            } catch (error) {
+                showError('Error accessing camera: ' + error.message);
+                throw error;
+            }
+        }
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+        function showError(message) {
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+        async function loadModels() {
+            try {
+                updateStatus('Loading enhanced models...');
+                faceModel = await faceLandmarksDetection.load(
+                    faceLandmarksDetection.SupportedPackages.mediapipeFacemesh,
+                    { maxFaces: 30 }
+                );
+                blazeModel = await blazeface.load();
+                poseModel = await poseDetection.createDetector(
+                    poseDetection.SupportedModels.MoveNet
+                );
+                updateStatus('Enhanced models loaded');
+            } catch (error) {
+                showError('Error loading models: ' + error.message);
+                throw error;
+            }
+        }
+        function calculateAttention(face) {
+            const leftEye = face.scaledMesh[33];
+            const rightEye = face.scaledMesh[263];
+            const nose = face.scaledMesh[1];
+            const eyeDistance = Math.sqrt(
+                Math.pow(rightEye[0] - leftEye[0], 2) + 
+                Math.pow(rightEye[1] - leftEye[1], 2)
+            );
+            const noseOffset = Math.abs(
+                (leftEye[0] + rightEye[0]) / 2 - nose[0]
+            );
+            const attention = Math.max(0, 100 - (noseOffset / eyeDistance) * 100);
+            return Math.min(100, attention);
+        }
+        function calculateFocusLevel(face) {
+            const leftEyeUpper = face.scaledMesh[159];
+            const leftEyeLower = face.scaledMesh[145];
+            const rightEyeUpper = face.scaledMesh[386];
+            const rightEyeLower = face.scaledMesh[374];
+            const leftEAR = Math.abs(leftEyeUpper[1] - leftEyeLower[1]);
+            const rightEAR = Math.abs(rightEyeUpper[1] - rightEyeLower[1]);
+            const avgEAR = (leftEAR + rightEAR) / 2;
+            return Math.min(100, (avgEAR / 10) * 100);
+        }
+        function calculateParticipation(pose) {
+            if (!pose || !pose.keypoints) return 0;
+            const rightWrist = pose.keypoints.find(kp => kp.name === 'right_wrist');
+            const leftWrist = pose.keypoints.find(kp => kp.name === 'left_wrist');
+            const shoulder = pose.keypoints.find(kp => kp.name === 'right_shoulder');
+            if (!rightWrist || !leftWrist || !shoulder) return 0;
+            const handHeight = Math.min(rightWrist.y, leftWrist.y);
+            const shoulderHeight = shoulder.y;
+            return handHeight < shoulderHeight ? 100 : 50;
+        }
+        function calculateAlertness(face) {
+            const leftEyeUpper = face.scaledMesh[159];
+            const leftEyeLower = face.scaledMesh[145];
+            const rightEyeUpper = face.scaledMesh[386];
+            const rightEyeLower = face.scaledMesh[374];
+            const leftEyeOpenness = Math.abs(leftEyeUpper[1] - leftEyeLower[1]);
+            const rightEyeOpenness = Math.abs(rightEyeUpper[1] - rightEyeLower[1]);
+            const avgOpenness = ((leftEyeOpenness + rightEyeOpenness) / 2) * 10;
+            return Math.min(100, Math.max(0, avgOpenness));
+        }
+        function drawMetricsOverlay(ctx, metrics, bbox) {
+            const { attention, focusLevel, participation, alertness, expressions } = metrics;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(
+                bbox.topLeft[0] - 120,
+                bbox.topLeft[1],
+                110,
+                140
+            );
+            const metricsData = [
+                { label: 'Focus', value: focusLevel, color: '#22c55e' },
+                { label: 'Alert', value: alertness, color: '#f59e0b' },
+                { label: 'Partic.', value: participation, color: '#2563eb' },
+                { label: 'Atten.', value: attention, color: '#8b5cf6' },
+                { label: 'Expr.', value: expressions.happy, color: '#ec4899' }
+            ];
+            metricsData.forEach((metric, index) => {
+                const y = bbox.topLeft[1] + 20 + (index * 25);
+                ctx.fillStyle = 'white';
+                ctx.font = '12px Inter';
+                ctx.fillText(`${metric.label}:`, bbox.topLeft[0] - 115, y);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.fillRect(bbox.topLeft[0] - 70, y - 8, 50, 4);
+                ctx.fillStyle = metric.color;
+                ctx.fillRect(
+                    bbox.topLeft[0] - 70,
+                    y - 8,
+                    (metric.value / 100) * 50,
+                    4
+                );
+                ctx.fillStyle = 'white';
+                ctx.fillText(
+                    `${metric.value.toFixed(0)}%`,
+                    bbox.topLeft[0] - 15,
+                    y
+                );
+            });
+        }
+        function simulateExpressions() {
+            return {
+                neutral: Math.random() * 40 + 40,
+                happy: Math.random() * 30,
+                sad: Math.random() * 10,
+                angry: Math.random() * 10,
+                fearful: Math.random() * 5,
+                disgusted: Math.random() * 5,
+                surprised: Math.random() * 10
+            };
+        }
+        async function detectFaces() {
+            if (!isRunning) return;
+            try {
+                const [faces, poses] = await Promise.all([
+                    faceModel.estimateFaces({
+                        input: video,
+                        returnTensors: false,
+                        flipHorizontal: false,
+                        predictIrises: true
+                    }),
+                    poseModel.estimatePoses(video)
+                ]);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                let totalEngagement = 0;
+                let totalAttention = 0;
+                let totalFocus = 0;
+                let totalAlertness = 0;
+                let totalParticipation = 0;
+                let expressions = {
+                    neutral: 0, happy: 0, sad: 0, angry: 0,
+                    fearful: 0, disgusted: 0, surprised: 0
+                };
+                faces.forEach((face, index) => {
+                    const pose = poses[index];
+                    const attention = calculateAttention(face);
+                    const focusLevel = calculateFocusLevel(face);
+                    const alertness = calculateAlertness(face);
+                    const participation = calculateParticipation(pose);
+                    const currentExpressions = simulateExpressions();
+                    totalAttention += attention;
+                    totalFocus += focusLevel;
+                    totalAlertness += alertness;
+                    totalParticipation += participation;
+                    totalEngagement += (attention + focusLevel + participation) / 3;
+                    Object.keys(expressions).forEach(key => {
+                        expressions[key] += currentExpressions[key];
+                    });
+                    const bbox = face.boundingBox;
+                    ctx.strokeStyle = '#2463EB';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(
+                        bbox.topLeft[0],
+                        bbox.topLeft[1],
+                        bbox.bottomRight[0] - bbox.topLeft[0],
+                        bbox.bottomRight[1] - bbox.topLeft[1]
+                    );
+                    drawMetricsOverlay(ctx, {
+                        attention,
+                        focusLevel,
+                        participation,
+                        alertness,
+                        expressions: currentExpressions
+                    }, bbox);
+                });
+                const faceCount = faces.length;
+                if (faceCount > 0) {
+                    const avgEngagement = totalEngagement / faceCount;
+                    const avgAttention = totalAttention / faceCount;
+                    const avgFocus = totalFocus / faceCount;
+                    const avgAlertness = totalAlertness / faceCount;
+                    const avgParticipation = totalParticipation / faceCount;
+                    Object.keys(expressions).forEach(key => {
+                        expressions[key] /= faceCount;
+                    });
+                    document.getElementById('activeStudents').textContent = faceCount;
+                    document.getElementById('avgEngagement').textContent = `${avgEngagement.toFixed(1)}%`;
+                    document.getElementById('avgFocus').textContent = `${avgFocus.toFixed(1)}%`;
+                    document.getElementById('avgParticipation').textContent = `${avgParticipation.toFixed(1)}%`;
+                    updateExpressionMetrics(expressions);
+                    updateCharts({
+                        avgEngagement,
+                        avgAttention,
+                        avgFocus,
+                        avgAlertness,
+                        avgParticipation,
+                        expressions
+                    });
+                }
+                updateStatus(`Tracking ${faceCount} students`);
+            } catch (error) {
+                showError('Error during detection: ' + error.message);
+            }
+            requestAnimationFrame(detectFaces);
+        }
+        async function startTracking() {
+            try {
+                isRunning = true;
+                await setupCamera();
+                await loadModels();
+                detectFaces();
+                document.getElementById('startButton').disabled = true;
+                document.getElementById('stopButton').disabled = false;
+            } catch (error) {
+                showError('Failed to start tracking: ' + error.message);
+            }
+        }
+        function stopTracking() {
+            isRunning = false;
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            updateStatus('Tracking stopped');
+            document.getElementById('startButton').disabled = false;
+            document.getElementById('stopButton').disabled = true;
+        }
+        document.getElementById('startButton').addEventListener('click', startTracking);
+        document.getElementById('stopButton').addEventListener('click', stopTracking);
+        document.getElementById('stopButton').disabled = true;
+        window.addEventListener('resize', () => {
+            if (video && canvas) {
+                canvas.width = video.clientWidth;
+                canvas.height = video.clientHeight;
+            }
+        });
+        </script>
+</body>
