@@ -163,7 +163,7 @@
         }
 
         .expression-metrics {
-            display: grid;
+            display: none;
             grid-template-columns: repeat(2, 1fr);
             gap: 0.5rem;
             margin-top: 1rem;
@@ -272,152 +272,177 @@
             neutral: [], happy: [], sad: [], angry: [], 
             fearful: [], disgusted: [], surprised: []
         };
-        const engagementChart = new Chart(
-            document.getElementById('engagementChart'),
-            {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [
-                        {
-                            label: 'Engagement',
-                            data: [],
-                            borderColor: '#2563eb',
-                            tension: 0.4,
-                            fill: true,
-                            backgroundColor: 'rgba(37, 99, 235, 0.1)'
-                        },
-                        {
-                            label: 'Attention',
-                            data: [],
-                            borderColor: '#22c55e',
-                            tension: 0.4,
-                            fill: true,
-                            backgroundColor: 'rgba(34, 197, 94, 0.1)'
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            display: true
-                        },
-                        title: {
-                            display: true,
-                            text: 'Engagement & Attention Over Time'
-                        }
+        const MAX_DATA_POINTS = 200;
+        const chartConfig = {
+    type: 'line',
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                display: true,
+                labels: {
+                    font: {
+                        family: "'Inter', system-ui, sans-serif",
+                        size: 12,
+                        weight: 500
                     },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100
-                        }
+                    usePointStyle: true,
+                    padding: 20
+                }
+            },
+            title: {
+                display: true,
+                font: {
+                    family: "'Inter', system-ui, sans-serif",
+                    size: 14,
+                    weight: 600
+                },
+                padding: {
+                    bottom: 20
+                }
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                max: 100,
+                grid: {
+                    display: true,
+                    drawBorder: false,
+                    color: 'rgba(0, 0, 0, 0.05)'
+                },
+                ticks: {
+                    font: {
+                        family: "'Inter', system-ui, sans-serif",
+                        size: 11
+                    }
+                }
+            },
+            x: {
+                grid: {
+                    display: false
+                },
+                ticks: {
+                    font: {
+                        family: "'Inter', system-ui, sans-serif",
+                        size: 11
                     }
                 }
             }
-        );
-        const focusChart = new Chart(
-            document.getElementById('focusChart'),
-            {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [
-                        {
-                            label: 'Focus',
-                            data: [],
-                            borderColor: '#8b5cf6',
-                            tension: 0.4,
-                            fill: true,
-                            backgroundColor: 'rgba(139, 92, 246, 0.1)'
-                        },
-                        {
-                            label: 'Alertness',
-                            data: [],
-                            borderColor: '#f59e0b',
-                            tension: 0.4,
-                            fill: true,
-                            backgroundColor: 'rgba(245, 158, 11, 0.1)'
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            display: true
-                        },
-                        title: {
-                            display: true,
-                            text: 'Focus & Alertness Over Time'
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100
-                        }
-                    }
-                }
-            }
-        );
-        const expressionChart = new Chart(
-            document.getElementById('expressionChart'),
-            {
-                type: 'bar',
-                data: {
-                    labels: ['Neutral', 'Happy', 'Sad', 'Angry', 'Fearful', 'Disgusted', 'Surprised'],
-                    datasets: [{
-                        label: 'Expression Distribution',
-                        data: [0, 0, 0, 0, 0, 0, 0],
-                        backgroundColor: [
-                            '#64748b', '#22c55e', '#3b82f6', 
-                            '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899'
-                        ]
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        title: {
-                            display: true,
-                            text: 'Expression Distribution'
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100
-                        }
-                    }
-                }
-            }
-        );
-        function updateCharts(metrics) {
-            const timestamp = new Date().toLocaleTimeString();
-            engagementChart.data.labels.push(timestamp);
-            engagementChart.data.datasets[0].data.push(metrics.avgEngagement);
-            engagementChart.data.datasets[1].data.push(metrics.avgAttention);
-            focusChart.data.labels.push(timestamp);
-            focusChart.data.datasets[0].data.push(metrics.avgFocus);
-            focusChart.data.datasets[1].data.push(metrics.avgAlertness);
-            expressionChart.data.datasets[0].data = [
-                metrics.expressions.neutral,
-                metrics.expressions.happy,
-                metrics.expressions.sad,
-                metrics.expressions.angry,
-                metrics.expressions.fearful,
-                metrics.expressions.disgusted,
-                metrics.expressions.surprised
-            ];
-            engagementChart.update();
-            focusChart.update();
-            expressionChart.update();
+        },
+        interaction: {
+            intersect: false,
+            mode: 'index'
+        },
+        animation: {
+            duration: 300
         }
+    }
+};
+
+const engagementChart = new Chart(
+    document.getElementById('engagementChart'),
+    {
+        ...chartConfig,
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: 'Engagement',
+                    data: [],
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    borderWidth: 2
+                },
+                {
+                    label: 'Attention',
+                    data: [],
+                    borderColor: '#22c55e',
+                    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    borderWidth: 2
+                }
+            ]
+        },
+        options: {
+            ...chartConfig.options,
+            plugins: {
+                ...chartConfig.options.plugins,
+                title: {
+                    ...chartConfig.options.plugins.title,
+                    text: ''
+                }
+            }
+        }
+    }
+);
+
+const focusChart = new Chart(
+    document.getElementById('focusChart'),
+    {
+        ...chartConfig,
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: 'Focus',
+                    data: [],
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    borderWidth: 2
+                },
+                {
+                    label: 'Alertness',
+                    data: [],
+                    borderColor: '#22c55e',
+                    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    borderWidth: 2
+                }
+            ]
+        },
+        options: {
+            ...chartConfig.options,
+            plugins: {
+                ...chartConfig.options.plugins,
+                title: {
+                    ...chartConfig.options.plugins.title,
+                    text: ''
+                }
+            }
+        }
+    }
+);
+        
+        function updateCharts(metrics) {
+    const timestamp = new Date().toLocaleTimeString();
+    
+    if (engagementChart.data.labels.length > MAX_DATA_POINTS) {
+        engagementChart.data.labels.shift();
+        engagementChart.data.datasets.forEach(dataset => dataset.data.shift());
+    }
+    if (focusChart.data.labels.length > MAX_DATA_POINTS) {
+        focusChart.data.labels.shift();
+        focusChart.data.datasets.forEach(dataset => dataset.data.shift());
+    }
+
+    engagementChart.data.labels.push(timestamp);
+    engagementChart.data.datasets[0].data.push(metrics.avgEngagement);
+    engagementChart.data.datasets[1].data.push(metrics.avgAttention);
+    
+    focusChart.data.labels.push(timestamp);
+    focusChart.data.datasets[0].data.push(metrics.avgFocus);
+    focusChart.data.datasets[1].data.push(metrics.avgAlertness);
+
+    engagementChart.update();
+    focusChart.update();
+}
         function updateExpressionMetrics(expressions) {
             const container = document.getElementById('expressionMetrics');
             container.innerHTML = '';
@@ -506,6 +531,15 @@
             const avgEAR = (leftEAR + rightEAR) / 2;
             return Math.min(100, (avgEAR / 10) * 100);
         }
+        function roundRect(ctx, x, y, width, height, radius) {
+                ctx.beginPath();
+                ctx.moveTo(x + radius, y);
+                ctx.arcTo(x + width, y, x + width, y + height, radius);
+                ctx.arcTo(x + width, y + height, x, y + height, radius);
+                ctx.arcTo(x, y + height, x, y, radius);
+                ctx.arcTo(x, y, x + width, y, radius);
+                ctx.closePath();
+            }
         function calculateParticipation(pose) {
             if (!pose || !pose.keypoints) return 0;
             const rightWrist = pose.keypoints.find(kp => kp.name === 'right_wrist');
@@ -528,13 +562,17 @@
         }
         function drawMetricsOverlay(ctx, metrics, bbox) {
             const { attention, focusLevel, participation, alertness, expressions } = metrics;
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            ctx.fillRect(
+            ctx.fillStyle = '#222A38';
+            
+            roundRect(
+                ctx,
                 bbox.topLeft[0] - 120,
                 bbox.topLeft[1],
-                110,
-                140
+                140,
+                140,
+                16  
             );
+            ctx.fill();
             const metricsData = [
                 { label: 'Focus', value: focusLevel, color: '#22c55e' },
                 { label: 'Alert', value: alertness, color: '#f59e0b' },
@@ -613,14 +651,19 @@
                         expressions[key] += currentExpressions[key];
                     });
                     const bbox = face.boundingBox;
-                    ctx.strokeStyle = '#2463EB';
+                    ctx.strokeStyle = '#2563EB';
                     ctx.lineWidth = 2;
-                    ctx.strokeRect(
+
+                    // Use roundRect instead of strokeRect
+                    roundRect(
+                        ctx,
                         bbox.topLeft[0],
                         bbox.topLeft[1],
                         bbox.bottomRight[0] - bbox.topLeft[0],
-                        bbox.bottomRight[1] - bbox.topLeft[1]
+                        bbox.bottomRight[1] - bbox.topLeft[1],
+                        10 // corner radius in pixels
                     );
+                    ctx.stroke();
                     drawMetricsOverlay(ctx, {
                         attention,
                         focusLevel,
